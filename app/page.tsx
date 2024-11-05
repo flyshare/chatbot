@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { chatWithDeepseek } from './utils/deepseek';
+import MessageContent from './components/MessageContent';
+import 'highlight.js/styles/github-dark.css';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -76,11 +78,14 @@ export default function Home() {
                 >
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-2 ${message.role === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-800'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-800'
                       }`}
                   >
-                    {message.content}
+                    <MessageContent
+                      content={message.content}
+                      isUser={message.role === 'user'}
+                    />
                   </div>
                 </div>
               ))
