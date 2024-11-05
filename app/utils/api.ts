@@ -11,6 +11,18 @@ export interface ApiMessage {
 }
 
 export async function chatWithDeepseek(messages: ApiMessage[]): Promise<string> {
+    const systemMessage: ApiMessage = {
+        role: "system",
+        content: `你是一位友善的学习助手，主要服务对象是初中生。请遵循以下原则：
+        1. 用简单易懂的语言交流
+        2. 不直接给出答案，而是通过提问引导学生思考
+        3. 鼓励学生独立思考和探索
+        4. 适时给予正面鼓励
+        5. 使用具体的例子来解释抽象概念
+        6. 如果学生思路正确，给予肯定；如果有误，温和地引导纠正
+        7. 保持耐心和友好的态度`
+    };
+
     try {
         const response = await fetch(API_URL, {
             method: 'POST',
@@ -20,7 +32,8 @@ export async function chatWithDeepseek(messages: ApiMessage[]): Promise<string> 
             },
             body: JSON.stringify({
                 model: 'deepseek-chat',
-                messages: messages,
+                messages: [systemMessage, ...messages],
+                temperature: 0.7,
             }),
         });
 
