@@ -22,16 +22,49 @@ pre code {
 }
 
 /* 消息内容样式 */
-.message-content p {
-  margin: 0.5em 0;
+.message-content {
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
-.message-content p:first-child {
-  margin-top: 0;
+/* 代码块样式 */
+.message-content pre {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background-color: #1e1e1e;
+  overflow-x: auto;
 }
 
-.message-content p:last-child {
-  margin-bottom: 0;
+/* 特殊块样式 */
+.tip-block,
+.think-block,
+.example-block,
+.summary-block,
+.step-block,
+.warning-block {
+  position: relative;
+  margin: 1rem 0;
+}
+
+/* 列表项样式 */
+.list-item {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.list-item::before {
+  content: "•";
+  position: absolute;
+  left: 0.5rem;
+  color: #4b5563;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+  .message-content {
+    font-size: 0.95rem;
+  }
 }
 
 :root {
