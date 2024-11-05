@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { chatWithDeepseek } from './utils/deepseek';
 import MessageContent from './components/MessageContent';
+import { chatWithDeepseek, type ApiMessage } from './utils/api';
 import 'highlight.js/styles/github-dark.css';
 
 interface Message {
@@ -19,14 +19,18 @@ export default function Home() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = { role: 'user', content: input };
+    const userMessage: Message = {
+      role: 'user',
+      content: input
+    };
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
       // 准备发送给 API 的消息历史
-      const apiMessages = messages.concat(userMessage).map(msg => ({
+      const apiMessages: ApiMessage[] = messages.concat(userMessage).map(msg => ({
         role: msg.role,
         content: msg.content
       }));
@@ -35,14 +39,20 @@ export default function Home() {
       const response = await chatWithDeepseek(apiMessages);
 
       // 添加 AI 的回复
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
       // 显示错误消息
-      setMessages(prev => [...prev, {
+      const errorMessage: Message = {
         role: 'assistant',
         content: '抱歉，我遇到了一些问题。请稍后再试。'
-      }]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -94,8 +104,9 @@ export default function Home() {
               <div className="flex justify-start">
                 <div className="bg-gray-100 text-gray-800 rounded-2xl px-4 py-2">
                   <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-gray-800 rounded-full animate-spin"></div>
-                    <span>正在与 AI 对话...</span>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                   </div>
                 </div>
               </div>
@@ -110,13 +121,15 @@ export default function Home() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="请输入您的问题..."
-                className="flex-1 rounded-full px-4 py-2 border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                disabled={isLoading}
+                className="flex-1 rounded-full px-4 py-2 border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                disabled={isLoading}
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-blue-300 disabled:cursor-not-allowed"
               >
-                发送
+                {isLoading ? '发送中...' : '发送'}
               </button>
             </div>
           </form>
