@@ -1,27 +1,55 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth } from './context/AuthContext';
+import LoginButton from './components/LoginButton';
 import MessageContent from './components/MessageContent';
-import { chatWithDeepseek, type ApiMessage } from './utils/api';
-import 'highlight.js/styles/github-dark.css';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { chatService, type ChatMessage } from './utils/chatService';
+import AuthForm from './components/AuthForm';
+import { chatWithDeepseek } from './utils/api';
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // 加载聊天历史
+  useEffect(() => {
+    if (user) {
+      loadChatHistory();
+    } else {
+      setMessages([]);
+    }
+  }, [user]);
+
+  const loadChatHistory = async () => {
+    if (!user) return;
+    setIsHistoryLoading(true);
+    setError(null);
+    try {
+      const history = await chatService.getChatHistory(user.uid);
+      setMessages(history.reverse());
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      setError('加载聊天记录失败，请刷新页面重试');
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  // 添加处理提交的函数
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !user) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
+      userId: user.uid,
       role: 'user',
-      content: input
+      content: input,
+      timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -29,28 +57,36 @@ export default function Home() {
     setIsLoading(true);
 
     try {
+      // 保存用户消息
+      await chatService.saveMessage(userMessage);
+
       // 准备发送给 API 的消息历史
-      const apiMessages: ApiMessage[] = messages.concat(userMessage).map(msg => ({
+      const apiMessages = messages.concat(userMessage).map(msg => ({
         role: msg.role,
         content: msg.content
       }));
 
-      // 调用 API
+      // 获取 AI 回复
       const response = await chatWithDeepseek(apiMessages);
 
-      // 添加 AI 的回复
-      const assistantMessage: Message = {
+      // 创建并保存 AI 回复
+      const assistantMessage: ChatMessage = {
+        userId: user.uid,
         role: 'assistant',
-        content: response
+        content: response,
+        timestamp: new Date()
       };
 
+      await chatService.saveMessage(assistantMessage);
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
       // 显示错误消息
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
+        userId: user.uid,
         role: 'assistant',
-        content: '抱歉，我遇到了一些问题。请稍后再试。'
+        content: '抱歉，我遇到了一些问题。请稍后再试。',
+        timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -59,94 +95,86 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* 更新标题区域，使其更友好 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-            学习小助手
-          </h1>
-          <p className="text-gray-600 mt-2">
-            和我一起探索知识的奥秘吧！
-          </p>
-          {/* 添加温馨提示 */}
-          <div className="mt-4 text-sm text-gray-500 bg-blue-50 p-3 rounded-lg inline-block">
-            <p>💡 小贴士：</p>
-            <p>1. 遇到问题时，先试着自己思考</p>
-            <p>2. 可以告诉我你的想法，我们一起讨论</p>
-            <p>3. 记住：学习的过程比答案更重要哦！</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <header className="bg-white shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-gray-800">AI 学习助手</h1>
+          {user && <LoginButton />}
         </div>
+      </header>
 
-        {/* 聊天窗口 */}
-        <div className="bg-white rounded-2xl shadow-lg border border-blue-100 h-[500px] flex flex-col">
-          {/* 聊天记录区域 */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-400 mt-8">
-                <p>👋 你好啊！有什么想问的问题吗？</p>
-                <p className="text-sm mt-2">我会引导你思考，帮助你找到答案！</p>
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                >
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        {!user ? (
+          <div className="py-12">
+            <AuthForm />
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 h-[600px] flex flex-col">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {isHistoryLoading ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : error ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="text-red-500 text-center">
+                    <p>{error}</p>
+                    <button
+                      onClick={loadChatHistory}
+                      className="mt-2 text-blue-500 hover:text-blue-600"
+                    >
+                      重试
+                    </button>
+                  </div>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex justify-center items-center h-full text-gray-500">
+                  开始你的第一次对话吧！
+                </div>
+              ) : (
+                messages.map((message, index) => (
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2 ${message.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-800'
+                    key={index}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
                       }`}
                   >
-                    <MessageContent
-                      content={message.content}
-                      isUser={message.role === 'user'}
-                    />
+                    <div
+                      className={`max-w-[80%] rounded-2xl px-4 py-2 ${message.role === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-800'
+                        }`}
+                    >
+                      <MessageContent
+                        content={message.content}
+                        isUser={message.role === 'user'}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-800 rounded-2xl px-4 py-2">
-                  <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 输入区域 */}
-          <form onSubmit={handleSubmit} className="p-4 border-t border-blue-100">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="写下你的问题或想法..."
-                disabled={isLoading}
-                className="flex-1 rounded-full px-4 py-2 border border-blue-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-blue-300 disabled:cursor-not-allowed"
-              >
-                {isLoading ? '思考中...' : '发送'}
-              </button>
+                ))
+              )}
             </div>
-          </form>
-        </div>
 
-        {/* 添加学习小贴士 */}
-        <div className="mt-4 text-center text-sm text-gray-500">
-          记住：学习最重要的是理解过程，而不是简单地得到答案哦！
-        </div>
+            <form onSubmit={handleSubmit} className="p-4 border-t border-gray-100">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="请输入您的问题..."
+                  disabled={isLoading}
+                  className="flex-1 rounded-full px-4 py-2 border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 py-2 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? '发送中...' : '发送'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );
